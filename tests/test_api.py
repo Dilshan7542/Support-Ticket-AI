@@ -2,10 +2,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-from fastapi.testclient import TestClient
 
 from app.core.config import Settings
-from app.main import create_app
+from app.factory import create_app
 from app.ml.model_registry import LoadedModel, ModelRegistry
 
 
@@ -49,7 +48,7 @@ def test_predict_endpoint() -> None:
     )
     app = create_app(settings, build_registry(settings))
 
-    with TestClient(app) as client:
+    with app.test_client() as client:
         response = client.post(
             "/predict",
             headers={"X-API-Key": "test-key"},
@@ -60,7 +59,7 @@ def test_predict_endpoint() -> None:
         )
 
     assert response.status_code == 200
-    assert response.json() == {
+    assert response.get_json() == {
         "category": "PAYMENT_ISSUE",
         "categoryConfidence": 0.91,
         "priority": "HIGH",
@@ -74,7 +73,7 @@ def test_invalid_api_key() -> None:
     settings = Settings(api_key="correct-key", fail_startup_if_models_missing=False)
     app = create_app(settings, build_registry(settings))
 
-    with TestClient(app) as client:
+    with app.test_client() as client:
         response = client.post(
             "/predict",
             headers={"X-API-Key": "wrong-key"},
@@ -88,10 +87,11 @@ def test_health_endpoint() -> None:
     settings = Settings(fail_startup_if_models_missing=False)
     app = create_app(settings, build_registry(settings))
 
-    with TestClient(app) as client:
+    with app.test_client() as client:
         response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json()["status"] == "UP"
-    assert response.json()["categoryModel"]["loaded"] is True
-    assert response.json()["priorityModel"]["loaded"] is True
+    body = response.get_json()
+    assert body["status"] == "UP"
+    assert body["categoryModel"]["loaded"] is True
+    assert body["priorityModel"]["loaded"] is True
